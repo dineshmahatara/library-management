@@ -8,7 +8,8 @@ const bookSchema = new mongoose.Schema({
     genre: String,
     copies_available: Number,
     total_copies: Number,
-    borrowed_by: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
+    borrowed_by: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    schoolId: [{ type: mongoose.Schema.Types.ObjectId, ref: 'School' }]
 });
 
 const Book = mongoose.model('Book', bookSchema);

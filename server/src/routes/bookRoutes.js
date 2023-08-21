@@ -52,6 +52,14 @@ router.put('/books/:id', async (req, res) => {
         res.status(400).json({ error: error.message });
     }
 });
-
+router.get('/books/count/:isbn', async (req, res) => {
+    const isbn = req.params.isbn;
+    try {
+        const totalBooks = await bookService.countBooksByISBN(isbn);
+        res.status(200).json({ totalBooks });
+    } catch (error) {
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
 
 module.exports = router;

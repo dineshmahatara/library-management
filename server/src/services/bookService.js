@@ -2,17 +2,49 @@ const Book = require('../models/bookModel');
 const User = require('../models/userModel');
 const BorrowingHistory = require('../models/borrowingHistoryModel'); // Import the BorrowingHistory model
 
+
+
+
 exports.createBook = async (bookData) => {
     try {
-        // Check if a book with the same ISBN already exists
-        const existingBook = await Book.findOne({ isbn: bookData.isbn });
+        // Check if the same book with the same ISBN already exists in the same school
+        const existingBookWithSameISBNInSchool = await Book.findOne({
+            isbn: bookData.isbn,
+            schoolId: bookData.schoolId
+        });
 
-        if (existingBook) {
-            throw new Error("This ISBN is already registered");
+        if (existingBookWithSameISBNInSchool) {
+            throw new Error('A book with the same ISBN already exists in the same school.');
         }
 
         const newBook = new Book(bookData);
         return await newBook.save();
+    } catch (error) {
+        throw error;
+    }
+};
+
+
+exports.countBooksByISBN = async (isbn) => {
+    
+    try {
+        const bookCounts = await Book.aggregate([
+            {
+                $match: { isbn: isbn }
+            },
+            {
+                $group: {
+                    _id: null,
+                    totalBooks: { $sum: 1 }
+                }
+            }
+        ]);
+
+        if (bookCounts.length > 0) {
+            return bookCounts[0].totalBooks;
+        } else {
+            return 0;
+        }
     } catch (error) {
         throw error;
     }

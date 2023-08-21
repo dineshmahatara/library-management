@@ -1,15 +1,77 @@
-// controllers/userController.js
 const User = require('../models/userModel');
+const bcrypt = require('bcrypt')
+const jwt = require('jsonwebtoken');
+const sendRegistrationEmail = require('../middleWare/emailMiddleware');
+const { generateRandomToken } = require('../utils/tokenUtils'); // Import your token generation function
 
 exports.createUser = async (userData) => {
-    console.log('Creating user with userData:', userData);
     try {
+        // Validate the role against allowed roles
+        const allowedRoles = ['Admin', 'Municipality', 'School', 'Teacher', 'Student'];
+        if (!allowedRoles.includes(userData.role)) {
+            throw new Error('Invalid role. Allowed roles are: Admin, Municipality, School, Teacher, Student');
+        }
+
+        // Check if a user with the same email or phone already exists
+        const existingUser = await User.findOne({
+            $or: [
+                { email: userData.email },
+                { phone: userData.phone }
+            ]
+        });
+
+        if (existingUser) {
+            if (existingUser.email === userData.email) {
+                throw new Error('Email is already registered');
+            } else if (existingUser.phone === userData.phone) {
+                throw new Error('Phone number is already registered');
+            }
+        }
+
+        const hash = bcrypt.hashSync(userData.password, 10);
+        userData.password = hash;
+
         const newUser = new User(userData);
-        return await newUser.save();
+        newUser.activationToken = generateRandomToken(); // Generate a unique activation token
+        await newUser.save();
+
+        // Send registration email
+                const activationLink = `${process.env.SITE_ADDRESS}/api/activate?token=${newUser.activationToken}`;
+                sendRegistrationEmail(newUser, activationLink); // Pass newUser object and activationLink
+
+        return newUser;
     } catch (error) {
         throw error;
     }
-}
+};
+
+exports.activate = async (req, res) => {
+    const { token } = req.query;
+
+    if (!token) {
+        return res.status(400).json({ message: 'Missing activation token' });
+    }
+
+    try {
+        const user = await User.findOne({ activationToken: token });
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        user.status = 'Active';
+        user.activationToken = undefined; // Optional: Clear the token after activation
+        await user.save();
+
+        return res.redirect('/login'); // Redirect to a login page or a success page
+    } catch (error) {
+        return res.status(500).json({ message: 'Error activating user' });
+    }
+};
+
+// The rest of your code remains the same
+
+
 exports.borrowBook = async (userId, bookId) => {
     try {
         const result = await userService.borrowBook(userId, bookId);
@@ -18,3 +80,14 @@ exports.borrowBook = async (userId, bookId) => {
         throw error;
     }
 };
+exports.login = async (req, res) => {
+    const { phone, password } = req.body;
+    try {
+        const loginResult = await userService.login(phone, password);
+        res.json(loginResult);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+
