@@ -1,5 +1,6 @@
 
 const userController = require('../controllers/userControllers')
+
 const User = require('../models/userModel'); // Import your User model
 const sendRegistrationEmail = require('../middleWare/emailMiddleware');
 const { generateRandomToken } = require('../utils/tokenUtils'); // Import your token generation function
@@ -97,10 +98,10 @@ exports.login = async(req, res) => {
 
 }
 
-exports.resendActivationLink = async (email) => {
+exports.resendActivationLink = async (phone) => {
   try {
     // Find the user by phone
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ phone });
 
     if (!user) {
       throw new Error('User not found');
@@ -111,7 +112,7 @@ exports.resendActivationLink = async (email) => {
     await user.save();
 
     // Send the new activation link using the same emailMiddleware function
-    const activationLink = `http://localhost:3000/api/activate?token=${user.activationToken}`;
+    const activationLink = `http://localhost:4000/api/activate?token=${user.activationToken}`;
     sendRegistrationEmail(user, activationLink);
 
     return 'Activation link has been resent';

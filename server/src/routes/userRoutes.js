@@ -111,11 +111,27 @@ router.post('/resend-activation-link', async (req, res) => {
     const { phone } = req.body;
 
     try {
-        const message = await userService.resendActivationLink(phone);
-        res.json({ message: message });
+        // Find the user by phone
+        const user = await Users.findOne({ phone });
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Generate a new activation token and update user's details
+        user.generateActivationToken();
+        await user.save();
+
+        // Send the new activation link to the user's email
+        const activationLink = `http://localhost:4000/api/activate?token=${user.activationToken}`;
+        sendRegistrationEmail(user, activationLink);
+
+        res.json({ message: 'Activation link has been resent' });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
+
 
 module.exports = router;

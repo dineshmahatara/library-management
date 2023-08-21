@@ -1,3 +1,4 @@
+const crypto = require('crypto'); // Import the crypto module
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({

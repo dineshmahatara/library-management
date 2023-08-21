@@ -37,9 +37,9 @@ const LoginForm = () => {
       console.error(error); // Handle login error
     }
   };
-  const handleResendActivationLink = async (email) => {
+  const handleResendActivationLink = async (phone) => {
     try {
-      const response = await axios.post('http://localhost:4000/api/resend-activation-link', { email });
+      const response = await axios.post('http://localhost:4000/api/resend-activation-link', { phone });
       setResendMessage(response.data.message);
     } catch (error) {
       console.error(error); // Handle error
