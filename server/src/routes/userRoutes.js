@@ -11,7 +11,10 @@ const municipalityController = require('../controllers/municipalityController');
 const schoolController = require('../controllers/schoolController');
 const studentController = require('../controllers/studentController');
 const Users = require('../models/userModel');
-const sendRegistrationEmail = require('../middleWare/emailMiddleware'); // Import the email sending function
+// const sendRegistrationEmail = require('../middleWare/emailMiddleware'); // Import the email sending function
+const generateResetPasswordTemplate = require('../templete/resetPasswordTemplate'); // Import the reset password template
+const registrationTemplete = require('../templete/registrationTemplete'); // Import the reset password template
+const sendEmail = require('../middleWare/emailMiddleware'); // Import the sendEmail function
 
 router.post('/users', async (req, res) => {
     try {
@@ -106,6 +109,30 @@ router.post('/login', async (req, res) => {
     }
 });
 
+// Route for sending activation link
+router.post('/activation-link', async (req, res) => {
+    const { email } = req.body;
+
+    try {
+        // Find the user by email
+        const user = await userService.getUserByEmail(email);
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Send the activation link to the user's email using the registration email template
+        const activationLink = `http://localhost:4000/api/activate?token=${user.activationToken}`;
+        const emailTemplate = registrationTemplete(user, activationLink); // Use the registration template
+        sendEmail(user, 'Activation Link', emailTemplate); // Use the sendEmail function
+
+        res.json({ message: 'Activation link has been sent to your email' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 // New route for resending activation link
 router.post('/resend-activation-link', async (req, res) => {
     const { phone } = req.body;
@@ -119,14 +146,75 @@ router.post('/resend-activation-link', async (req, res) => {
         }
 
         // Generate a new activation token and update user's details
-        user.generateActivationToken();
+        user.generateActivationToken(); // Use the method you defined in userModel.js
         await user.save();
 
-        // Send the new activation link to the user's email
+        // Send the new activation link to the user's email using the registration email template
         const activationLink = `http://localhost:4000/api/activate?token=${user.activationToken}`;
-        sendRegistrationEmail(user, activationLink);
+        const emailTemplate = registrationTemplete(user, activationLink); // Use the registration template
+        sendEmail(user, 'Resend Activation Link', emailTemplate); // Use the sendEmail function
 
         res.json({ message: 'Activation link has been resent' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Add this route after the "resend-activation-link" route
+// Route for sending reset password email
+// Route for sending reset password email
+router.post('/forgot-password', async (req, res) => {
+    const { email } = req.body;
+  
+    try {
+      // Find the user by email
+      const user = await Users.findOne({ email });
+  
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+  
+      // Generate a new activation token for password reset and update user's details
+      user.generateActivationToken(); // Use the method you defined in userModel.js
+      await user.save();
+  
+      // Send the password reset link to the user's email
+      const resetPasswordLink = `http://localhost:4000/api/reset-password?token=${user.activationToken}`;
+      const resetPasswordTemplate = generateResetPasswordTemplate(user, resetPasswordLink); // Use the reset template
+      sendEmail(user, 'Password Reset', resetPasswordTemplate);
+  
+      res.json({ message: 'Password reset link has been sent to your email' });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+  
+// Implement the reset-password route to handle password reset based on the reset token
+router.post('/reset-password/:token', async (req, res) => {
+    
+    const { token } = req.params;
+    const { newPassword } = req.body;
+
+    try {
+        // Verify the token
+        const decodedToken = jwt.verify(token, process.env.SECRET_KEY);
+
+        // Find the user by userId and reset token
+        const user = await Users.findOne({ _id: decodedToken.userId, resetToken: token });
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found or invalid token' });
+        }
+
+        // Update the user's password and clear the reset token
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        user.password = hashedPassword;
+        user.resetToken = undefined;
+        await user.save();
+
+        res.json({ message: 'Password reset successful' });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Internal server error' });
