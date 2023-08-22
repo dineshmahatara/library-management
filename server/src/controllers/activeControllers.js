@@ -13,7 +13,7 @@ exports.activate = async (req, res) => {
         const user = await User.findOne({ activationToken: token });
 
         if (!user) {
-            return res.status(404).json({ message: 'User not found' });
+            return res.status(404).json({ message: 'User dinesh not found' });
         }
 
         user.status = 'Active';

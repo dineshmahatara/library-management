@@ -11,11 +11,6 @@ const municipalityController = require('../controllers/municipalityController');
 const schoolController = require('../controllers/schoolController');
 const studentController = require('../controllers/studentController');
 const Users = require('../models/userModel');
-// const sendRegistrationEmail = require('../middleWare/emailMiddleware'); // Import the email sending function
-const generateResetPasswordTemplate = require('../templete/resetPasswordTemplate'); // Import the reset password template
-const registrationTemplete = require('../templete/registrationTemplete'); // Import the reset password template
-const sendEmail = require('../middleWare/emailMiddleware'); // Import the sendEmail function
-
 router.post('/users', async (req, res) => {
     try {
         const newUser = await userService.createUser(req.body);
@@ -109,61 +104,6 @@ router.post('/login', async (req, res) => {
     }
 });
 
-// Route for sending activation link
-router.post('/activation-link', async (req, res) => {
-    const { email } = req.body;
-
-    try {
-        // Find the user by email
-        const user = await userService.getUserByEmail(email);
-
-        if (!user) {
-            return res.status(404).json({ message: 'User not found' });
-        }
-
-        // Send the activation link to the user's email using the registration email template
-        const activationLink = `http://localhost:4000/api/activate?token=${user.activationToken}`;
-        const emailTemplate = registrationTemplete(user, activationLink); // Use the registration template
-        sendEmail(user, 'Activation Link', emailTemplate); // Use the sendEmail function
-
-        res.json({ message: 'Activation link has been sent to your email' });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-});
-
-// New route for resending activation link
-router.post('/resend-activation-link', async (req, res) => {
-    const { phone } = req.body;
-
-    try {
-        // Find the user by phone
-        const user = await Users.findOne({ phone });
-
-        if (!user) {
-            return res.status(404).json({ message: 'User not found' });
-        }
-
-        // Generate a new activation token and update user's details
-        user.generateActivationToken(); // Use the method you defined in userModel.js
-        await user.save();
-
-        // Send the new activation link to the user's email using the registration email template
-        const activationLink = `http://localhost:4000/api/activate?token=${user.activationToken}`;
-        const emailTemplate = registrationTemplete(user, activationLink); // Use the registration template
-        sendEmail(user, 'Resend Activation Link', emailTemplate); // Use the sendEmail function
-
-        res.json({ message: 'Activation link has been resent' });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-});
-
-// Add this route after the "resend-activation-link" route
-// Route for sending reset password email
-// Route for sending reset password email
 router.post('/forgot-password', async (req, res) => {
     const { email } = req.body;
   

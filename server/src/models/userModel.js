@@ -24,7 +24,9 @@ const userSchema = new mongoose.Schema({
     schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
     borrowed_books: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Book' }],
     activationToken: String,
-    activationTokenExpires: Date
+    activationTokenExpires: Date,
+    activationEmailSentAt: Date // Add this field to the schema
+
 });
 
 // Method to generate and set activation token

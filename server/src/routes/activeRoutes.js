@@ -1,8 +1,14 @@
 const express = require('express');
+const Users = require('../models/userModel');
 const router = express.Router();
-const User = require('../models/userModel');
+const jwt = require('jsonwebtoken');
+const activeService = require('../services/activeService');
+const activeController = require('../controllers/activeControllers');
+
 const sendEmail = require('../middleware/emailMiddleware');
 const generateEmailTemplate = require('../templete/activateTemplate'); // Import the new email template
+const generateResetPasswordTemplate = require('../templete/resetPasswordTemplate'); // Import the reset password template
+const registrationTemplete = require('../templete/registrationTemplete'); // Import the reset password template
 
 router.get('/activate', async (req, res) => {
     const { token } = req.query;
@@ -12,7 +18,7 @@ router.get('/activate', async (req, res) => {
     }
 
     try {
-        const user = await User.findOne({ activationToken: token });
+        const user = await Users.findOne({ activationToken: token });
 
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
@@ -42,97 +48,70 @@ router.get('/activate', async (req, res) => {
 
 module.exports = router;
 
+// Route for sending activation link
+router.post('/activation-link', async (req, res) => {
+    const { email } = req.body;
 
+    try {
+        // Find the user by email
+        const user = await activeService.getUserByEmail(email);
 
-// // const express = require('express');
-// // const router = express.Router();
-// // const activeService = require('../services/activeService');
-// // const sendRegistrationEmail = require('../middleWare/emailMiddleware');
-// // const { generateRandomToken } = require('../utils/tokenUtils'); // Import your token generation function
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
 
-// // router.get('/activate', async (req, res) => {
-// //     const { token } = req.query;
+        // Send the activation link to the user's email using the registration email template
+        const activationLink = `http://localhost:4000/api/activate?token=${user.activationToken}`;
+        const emailTemplate = registrationTemplete(user, activationLink); // Use the registration template
+        sendEmail(user, 'Activation Link', emailTemplate); // Use the sendEmail function
 
-// //     if (!token) {
-// //         return res.status(400).json({ message: 'Missing activation token' });
-// //     }
+        res.json({ message: 'Activation link has been sent to your email' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
 
-// //     try {
-// //         const activationResult = await activeService.activateUser(token);
+// New route for resending activation link
+// ...
 
-// //         if (activationResult.alreadyActivated) {
-// //             // User's account was already activated
-// //             return res.send(`
-// //                 <html>
-// //                 <head>
-// //                     <title>Already Activated</title>
-// //                 </head>
-// //                 <body>
-// //                     <h1>Account Already Activated</h1>
-// //                     <p>Your account has already been activated.</p>
-// //                     <p>You can now proceed to the <a href="/login">login page</a>.</p>
-// //                 </body>
-// //                 </html>
-// //             `);
-// //         }
+// ...
 
-// //         // User's account was successfully activated
-// //         res.send(`
-// //             <html>
-// //             <head>
-// //                 <title>Activation Successful</title>
-// //                 <meta http-equiv="refresh" content="3;url=/login">
-// //             </head>
-// //             <body>
-// //                 <h1>Activation Successful</h1>
-// //                 <p>Your account has been activated. You will be redirected to the login page in 3 seconds...</p>
-// //             </body>
-// //             </html>
-// //         `);
-// //     } catch (error) {
-// //         return res.status(500).json({ message: 'Error activating user' });
-// //     }
-// // });
+router.post('/resend-activation-link', async (req, res) => {
+    const { phone } = req.body;
 
-// // module.exports = router;
-// const express = require('express');
-// const router = express.Router();
-// const User = require('../models/userModel');
-// const sendRegistrationEmail = require('../middleware/emailMiddleware');
-// const generateEmailTemplate = require('../templete/activateTemplate'); // Import the new email template
-// //
+    try {
+        // Find the user by phone
+        const user = await Users.findOne({ phone });
 
-// router.get('/activate', async (req, res) => {
-//     const { token } = req.query;
-  
-//     if (!token) {
-//       return res.status(400).json({ message: 'Missing activation token' });
-//     }
-  
-//     try {
-//       const user = await User.findOne({ activationToken: token });
-  
-//       if (!user) {
-//         return res.status(404).json({ message: 'User not found' });
-//       }
-  
-//       user.status = 'Active';
-//       user.activationToken = undefined;
-//       await user.save();
-  
-//       const activationLink = `${process.env.SITE_ADDRESS}/login`; // Update the redirection link
-  
-//       // Use the new email template for activation
-//       const emailTemplate = generateEmailTemplate(user, activationLink);
-  
-//       // Send the activation email using the emailMiddleware
-//       sendRegistrationEmail(user, emailTemplate);
-  
-//       return res.redirect('/login'); // Redirect to a login page or a success page
-//     } catch (error) {
-//       return res.status(500).json({ message: 'Error activating user' });
-//     }
-//   });
-  
+        if (!user) {
+            return res.status(404).json({ message: 'User not found Try Again' });
+        }
 
-// module.exports = router;
+        if (user.status === 'Active') {
+            return res.status(200).json({ message: 'User is already activated' });
+        }
+
+        // Check if the user has been sent an activation email within the last minute
+        const currentTime = new Date();
+        if (user.activationEmailSentAt && (currentTime - user.activationEmailSentAt) < 60000) {
+            return res.status(200).json({ message: 'Activation email already sent within the last minute' });
+        }
+
+        // Generate a new activation token and update user's details
+        user.generateActivationToken();
+        user.activationEmailSentAt = currentTime; // Store the time when activation email is sent
+        await user.save();
+
+        // Send the new activation link to the user's email using the registration email template
+        const activationLink = `http://localhost:4000/api/activate?token=${user.activationToken}`;
+        const emailTemplate = registrationTemplete(user, activationLink);
+        sendEmail(user, 'Resend Activation Link', emailTemplate);
+
+        res.json({ message: 'Activation link has been resent' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
